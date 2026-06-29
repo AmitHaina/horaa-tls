@@ -75,13 +75,13 @@ session = Session(profile=ClientProfile.CHROME_133)
 
 # 1. State-aware proxy rotator with failover recovery
 proxies = ["http://proxy1.example.com:8080", "http://proxy2.example.com:8080"]
-session.middleware_pipeline.register(
+session.middleware_pipeline.add(
     ProxyRotatorMiddleware(proxies=proxies, mode="failover", max_failovers=3)
 )
 
 # 2. Exponential backoff retry handler for transport/network drops
-session.middleware_pipeline.register(
-    RetryMiddleware(max_retries=3, backoff_factor=2.0, status_forcelist=[500, 502, 503, 504])
+session.middleware_pipeline.add(
+    RetryMiddleware(max_retries=3, backoff_factor=2.0, retry_on_status=(500, 502, 503, 504))
 )
 
 # Request executes automatically through the middleware pipeline

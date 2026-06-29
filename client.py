@@ -337,7 +337,8 @@ class Session:
         return self.request("OPTIONS", url, **kwargs)
 
     def head(self, url: str, **kwargs) -> Response:
-        return self.request("HEAD", url, allow_redirects=False, **kwargs)
+        kwargs.setdefault("allow_redirects", False)
+        return self.request("HEAD", url, **kwargs)
 
     # Shorthand HTTP async method wrappers
     async def get_async(self, url: str, **kwargs) -> Response:

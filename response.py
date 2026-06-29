@@ -80,7 +80,7 @@ class Protocol(Enum):
         val = value.upper().strip()
         if val in ("H2", "HTTP/2", "HTTP/2.0"):
             return cls.HTTP_2
-        if val in ("HTTP/1.1", "HTTP/1.1"):
+        if val in ("H1", "HTTP/1", "HTTP/1.1"):
             return cls.HTTP_1_1
         if val in ("HTTP/3", "HTTP/3.0", "QUIC"):
             return cls.HTTP_3
@@ -171,12 +171,12 @@ def build_response(raw_resp: Dict[str, Any], is_byte_response: bool = False) -> 
     else:
         response._content = raw_body.encode("utf-8") if isinstance(raw_body, str) else b""
 
-    # Parse cookies from headers (fallback if not parsed by Go layer, or we can read from Response object)
-    # The Go tls-client returns cookies in response_object["cookies"], but it also lists them in Set-Cookie headers.
-    # We populate the cookies dict from the Go response's list of cookies.
-    cookies_list = raw_resp.get("cookies", [])
-    if isinstance(cookies_list, list):
-        for cookie in cookies_list:
+    # The Go tls-client returns cookies as a map ({name: value}); handle list form too.
+    raw_cookies = raw_resp.get("cookies", {})
+    if isinstance(raw_cookies, dict):
+        response.cookies.update(raw_cookies)
+    elif isinstance(raw_cookies, list):
+        for cookie in raw_cookies:
             if isinstance(cookie, dict) and "name" in cookie and "value" in cookie:
                 response.cookies[cookie["name"]] = cookie["value"]
 
