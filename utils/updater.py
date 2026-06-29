@@ -80,9 +80,14 @@ def fetch_latest_release_info() -> Tuple[str, list]:
     Queries GitHub API to fetch latest version tag and asset list.
     Returns (version_str, asset_list).
     """
+    headers = {"User-Agent": "horaa-tls-updater", "Accept": "application/vnd.github.v3+json"}
+    token = os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
+    if token:
+        headers["Authorization"] = f"token {token}"
+        
     req = urllib.request.Request(
         RELEASES_URL,
-        headers={"User-Agent": "horaa-tls-updater", "Accept": "application/vnd.github.v3+json"}
+        headers=headers
     )
     try:
         with urllib.request.urlopen(req, timeout=10) as response:
@@ -119,9 +124,14 @@ def save_local_version(asset_name: str, version: str):
 
 def download_asset(url: str, dest_path: str):
     """Downloads the file from the given url to dest_path."""
+    headers = {"User-Agent": "horaa-tls-updater"}
+    token = os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
+    if token:
+        headers["Authorization"] = f"token {token}"
+
     req = urllib.request.Request(
         url,
-        headers={"User-Agent": "horaa-tls-updater"}
+        headers=headers
     )
     try:
         with urllib.request.urlopen(req, timeout=60) as response, open(dest_path, "wb") as out_file:
@@ -137,8 +147,18 @@ def update_if_necessary() -> str:
     Checks if shared library needs downloading or updating.
     Downloads if necessary, and returns the path to the loaded library file.
     """
+    # 1. Check for manual environment override first
+    env_path = os.getenv("TLS_LIBRARY_PATH")
+    if env_path and os.path.exists(env_path):
+        return env_path
+
     deps_dir = get_dependencies_dir()
     local_asset, local_version = read_local_version()
+
+    # 2. If we already have a local version file and the binary exists, return it!
+    # This prevents hitting the GitHub API on subsequent requests and avoiding rate limits.
+    if local_asset and os.path.exists(os.path.join(deps_dir, local_asset)):
+        return os.path.join(deps_dir, local_asset)
 
     # Fetch latest version info
     latest_version, assets = fetch_latest_release_info()
