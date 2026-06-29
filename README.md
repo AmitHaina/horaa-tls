@@ -112,3 +112,13 @@ session.add_cookies_to_backend("https://example.com", [
     {"name": "session_token", "value": "token_value", "domain": ".example.com", "path": "/"}
 ])
 ```
+
+---
+
+## 📬 Contact
+
+Have questions, found a bug, or want to contribute? Reach out on Discord:
+
+[![Discord](https://img.shields.io/badge/Discord-horaaadev-5865F2?logo=discord&logoColor=white)](https://discord.com/users/horaaadev)
+
+**Discord:** `horaaadev`
