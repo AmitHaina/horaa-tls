@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "horaa-tls"
+version = "0.1.0"
+description = "Advanced HTTP client with low-level TLS and browser fingerprint spoofing based on Go tls-client FFI"
+readme = "README.md"
+authors = [
+    { name = "Amit Haina" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.setuptools]
+packages = ["horaa_tls"]
+package-dir = {"horaa_tls" = "."}
