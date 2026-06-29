@@ -1,7 +1,7 @@
 # 🌌 Horaa TLS
 *State-of-the-art in-process browser fingerprint emulation and HTTP client for Python.*
 
-`horaa-tls` is a high-performance HTTP client designed to evade anti-bot security layers (such as Cloudflare Turnstile, Akamai, Imperva, and DataDome). By interfacing directly with a precompiled Go-based BoringSSL networking backend via a ctypes FFI wrapper, it maintains a footprint indistinguishable from a real web browser at both the TLS socket and HTTP/2 layer.
+`horaa-tls` is a high-performance HTTP client designed to spoof browser TLS and HTTP/2 characteristics. By interfacing directly with a precompiled Go-based BoringSSL networking backend via a ctypes FFI wrapper, it maintains a footprint indistinguishable from a real web browser to evade fingerprint-based anti-bot detection.
 
 ---
 
@@ -12,6 +12,13 @@ Install `horaa-tls` directly from PyPI:
 ```bash
 pip install horaa-tls
 ```
+
+---
+
+## 🛡️ Capabilities & Limitations
+
+*   **What it DOES bypass**: Bypasses passive fingerprinting blocks (such as JA3/JA4 TLS signatures, HTTP/2 frames configuration, and User-Agent/Client Hint alignment) enforced by Cloudflare, Akamai, Imperva, and DataDome.
+*   **What it DOES NOT bypass**: As a socket-level HTTP client, it does not run a browser engine or execute JavaScript. It **cannot** automatically solve interactive browser challenges (like Cloudflare Turnstile checkboxes or JS challenge walls). To access pages protected by active challenges, you must solve them using browser automation (or a solver) and pass the resulting session cookies/tokens to the client.
 
 ---
 
