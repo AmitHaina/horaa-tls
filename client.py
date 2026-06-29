@@ -42,6 +42,7 @@ class Session:
         header_order: Optional[List[str]] = None,
         pseudo_header_order: Optional[List[str]] = None,
         insecure_skip_verify: bool = False,
+        use_mitm_when_active: bool = True,
     ):
         """
         Args:
@@ -52,10 +53,20 @@ class Session:
             header_order: Custom sequence list of HTTP header keys.
             pseudo_header_order: Custom sequence list of HTTP/2 pseudo-header keys (starting with ':').
             insecure_skip_verify: Set to True to bypass SSL certificate verification.
+            use_mitm_when_active: Set to True to automatically route traffic through local Charles/Fiddler proxies if detected active.
         """
         self.profile = profile.value if isinstance(profile, ClientProfile) else profile
-        self.proxy = proxy
         self.insecure_skip_verify = insecure_skip_verify
+        self.use_mitm_when_active = use_mitm_when_active
+        
+        # Auto-detect local proxy if active and use_mitm_when_active is True
+        self.proxy = proxy
+        if not self.proxy and self.use_mitm_when_active:
+            from horaa_tls.utils.proxy_detector import detect_active_debugging_proxy
+            detected = detect_active_debugging_proxy()
+            if detected:
+                self.proxy = detected
+                
         self.session_id = str(uuid.uuid4())
         self.backend = CtypesGoBackend()
 
@@ -363,6 +374,7 @@ class Session:
             "headers": self.headers,
             "proxy": self.proxy,
             "insecure_skip_verify": self.insecure_skip_verify,
+            "use_mitm_when_active": self.use_mitm_when_active,
             "cookies": self.cookies,
             "timeout_seconds": self.timeout_seconds,
             "redirect_stop_at": self.redirect_stop_at,
@@ -396,6 +408,7 @@ class Session:
             profile=data.get("profile", ClientProfile.CHROME_120),
             proxy=data.get("proxy"),
             insecure_skip_verify=data.get("insecure_skip_verify", False),
+            use_mitm_when_active=data.get("use_mitm_when_active", True),
             header_order=data.get("header_order"),
             pseudo_header_order=data.get("pseudo_header_order"),
         )
