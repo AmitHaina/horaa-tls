@@ -1,6 +1,7 @@
 import json
 import base64
 from typing import Any, Dict, List, Optional, Union
+from enum import Enum
 from horaa_tls.exceptions import NetworkError
 
 
@@ -67,6 +68,29 @@ class CaseInsensitiveDict(dict):
         return f"CaseInsensitiveDict({dict(self.items())})"
 
 
+class Protocol(Enum):
+    HTTP_1_1 = "HTTP/1.1"
+    HTTP_2 = "HTTP/2.0"
+    HTTP_3 = "HTTP/3.0"
+
+    @classmethod
+    def from_string(cls, value: str) -> Optional['Protocol']:
+        if not value:
+            return None
+        val = value.upper().strip()
+        if val in ("H2", "HTTP/2", "HTTP/2.0"):
+            return cls.HTTP_2
+        if val in ("HTTP/1.1", "HTTP/1.1"):
+            return cls.HTTP_1_1
+        if val in ("HTTP/3", "HTTP/3.0", "QUIC"):
+            return cls.HTTP_3
+            
+        for member in cls:
+            if member.value.upper() == val:
+                return member
+        return None
+
+
 class Response:
     """
     Unified Response object mimicking requests/httpx API.
@@ -77,7 +101,7 @@ class Response:
         self.headers: CaseInsensitiveDict = CaseInsensitiveDict()
         self.cookies: Dict[str, str] = {}
         self.history: List['Response'] = []
-        self.used_protocol: Optional[str] = None
+        self.used_protocol: Optional[Protocol] = None
         
         self._content: bytes = b""
         self._text: Optional[str] = None
@@ -117,7 +141,7 @@ def build_response(raw_resp: Dict[str, Any], is_byte_response: bool = False) -> 
     response = Response()
     response.url = raw_resp.get("target", "")
     response.status_code = raw_resp.get("status", 0)
-    response.used_protocol = raw_resp.get("usedProtocol")
+    response.used_protocol = Protocol.from_string(raw_resp.get("usedProtocol"))
 
     # Map headers to CaseInsensitiveDict
     headers_dict = CaseInsensitiveDict()
