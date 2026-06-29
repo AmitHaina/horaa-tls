@@ -5,6 +5,16 @@
 
 ---
 
+## ⚙️ Installation
+
+Install `horaa-tls` directly from PyPI:
+
+```bash
+pip install horaa-tls
+```
+
+---
+
 ## 💡 Why Horaa TLS?
 
 *   **Zero External Dependencies**: Automatically detects your OS and architecture, downloads the matching precompiled Go libraries, and initializes everything dynamically without requiring third-party pip dependencies.
