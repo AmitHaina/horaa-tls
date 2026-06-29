@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "horaa-tls"
-version = "0.1.0"
+version = "0.1.2"
 description = "Advanced HTTP client with low-level TLS and browser fingerprint spoofing based on Go tls-client FFI"
 readme = "README.md"
 authors = [
@@ -19,5 +19,17 @@ requires-python = ">=3.10"
 dependencies = []
 
 [tool.setuptools]
-packages = ["horaa_tls"]
-package-dir = {"horaa_tls" = "."}
+packages = [
+    "horaa_tls",
+    "horaa_tls.backend",
+    "horaa_tls.fingerprint",
+    "horaa_tls.middleware",
+    "horaa_tls.utils"
+]
+package-dir = {
+    "horaa_tls" = ".",
+    "horaa_tls.backend" = "backend",
+    "horaa_tls.fingerprint" = "fingerprint",
+    "horaa_tls.middleware" = "middleware",
+    "horaa_tls.utils" = "utils"
+}

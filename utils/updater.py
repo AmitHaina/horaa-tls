@@ -66,9 +66,11 @@ def generate_asset_name(version: str) -> str:
         ext = ".dylib"
     else:
         ext = ".so"
-        # Check for ubuntu/debian specific build if needed, though default tls-client builds on linux generic
-        # the standard bogdanfinn build uses "linux"
-        sys_os = "linux"
+        # Check for Alpine vs Ubuntu/generic glibc distributions
+        if os.path.exists("/etc/alpine-release"):
+            sys_os = "linux-alpine"
+        else:
+            sys_os = "linux-ubuntu"
 
     return f"tls-client-{sys_os}-{arch}-{version}{ext}"
 
