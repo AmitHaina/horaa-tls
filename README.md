@@ -114,11 +114,11 @@ session.add_cookies_to_backend("https://example.com", [
 ```
 
 ---
+## Contributing
 
-## 📬 Contact
+Pull requests are welcome. If you open one, please describe your changes
+properly in the PR description so it's clear what you changed and why.
 
-Have questions, found a bug, or want to contribute? Reach out on Discord:
+## Contact
 
-[![Discord](https://img.shields.io/badge/Discord-horaaadev-5865F2?logo=discord&logoColor=white)](https://discord.com/users/horaaadev)
-
-**Discord:** `horaaadev`
+[![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QphWRKHvH2)
