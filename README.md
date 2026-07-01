@@ -17,7 +17,7 @@ pip install horaa-tls
 
 ## 🛡️ Capabilities & Limitations
 
-*   **What it DOES bypass**: Bypasses passive fingerprinting blocks (such as JA3/JA4 TLS signatures, HTTP/2 frames configuration, and User-Agent/Client Hint alignment) enforced by Cloudflare, Akamai, Imperva, and DataDome.
+*   **What it DOES bypass**: Bypasses passive fingerprinting blocks (such as JA3/JA4 TLS signatures, HTTP/2 frames configuration, and User-Agent/Client Hint alignment) enforced by Cloudflare, Akamai, and Imperva.
 *   **What it DOES NOT bypass**: As a socket-level HTTP client, it does not run a browser engine or execute JavaScript. It **cannot** automatically solve interactive browser challenges (like Cloudflare Turnstile checkboxes or JS challenge walls). To access pages protected by active challenges, you must solve them using browser automation (or a solver) and pass the resulting session cookies/tokens to the client.
 
 ---
@@ -114,6 +114,7 @@ session.add_cookies_to_backend("https://example.com", [
 ```
 
 ---
+
 ## Contributing
 
 Pull requests are welcome. If you open one, please describe your changes
@@ -122,3 +123,4 @@ properly in the PR description so it's clear what you changed and why.
 ## Contact
 
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?logo=discord&logoColor=white)](https://discord.gg/QphWRKHvH2)
+
