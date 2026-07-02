@@ -53,6 +53,38 @@ finally:
 
 ---
 
+## 📦 Public API (What You Can Import)
+
+Everything below is available directly from the top-level `horaa_tls` package:
+
+```python
+from horaa_tls import (
+    Session,             # main worker: sends requests, holds cookies/state
+    ClientProfile,       # enum of browser profiles to emulate
+    Response,            # object returned by requests (.status_code, .json(), .text, .cookies)
+    CaseInsensitiveDict, # header container where key case doesn't matter
+    Protocol,            # HTTP protocol enum (H1 / HTTP/1.1 / HTTP/2)
+    HoraaTLSError,       # base exception for the library
+    BackendError,        # raised when the Go FFI layer fails
+    NetworkError,        # raised on transport failures / HTTP error status
+)
+```
+
+| Import | Type | Use it for |
+|---|---|---|
+| `Session` | class | Creating a session and calling `.get()`, `.post()`, `.head()`, `.request()` |
+| `ClientProfile` | enum | Picking which browser to imitate (e.g. `ClientProfile.CHROME_133`) |
+| `Response` | class | Reading results: `.status_code`, `.json()`, `.text`, `.headers`, `.cookies` |
+| `CaseInsensitiveDict` | class | Accessing headers regardless of capitalization |
+| `Protocol` | enum | Checking/negotiating the HTTP version |
+| `HoraaTLSError` | exception | Catching any library error in one `except` |
+| `BackendError` | exception | Handling failures in the Go shared library |
+| `NetworkError` | exception | Handling connection drops and HTTP error responses |
+
+> **Tip:** you can pass profiles as the enum (`ClientProfile.CHROME_133`) or as a plain string (`"chrome_133"`) — both work.
+
+---
+
 ## 🛠️ Core Concepts & Advanced Guide
 
 ### 🧬 Aligned Browser Profiles
