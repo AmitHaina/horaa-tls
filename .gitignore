@@ -1,28 +1,11 @@
-# Python cache
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-
-# Local FFI binaries downloaded dynamically
 dependencies/
-*.dll
 *.so
+*.dll
 *.dylib
-
-# Zips and archives
-*.zip
-*.gz
-*.tar.gz
-
-# Virtual environments
 .venv/
 venv/
-ENV/
-
-# IDE config files
-.idea/
-.vscode/
-.project
-.pydevproject
-.settings/
+build/
+dist/
+*.egg-info/
