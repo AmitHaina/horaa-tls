@@ -1,5 +1,7 @@
 import uuid
 import base64
+import time
+import asyncio
 import urllib.parse
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
@@ -243,6 +245,9 @@ class Session:
                 # Run after_response middleware hooks to check for manual redirects or blocks
                 next_payload = self.middleware_pipeline.execute_after(self, payload, response)
                 if next_payload is not None:
+                    delay = next_payload.pop("_retry_delay", None)
+                    if delay:
+                        time.sleep(delay)
                     payload = next_payload
                     continue
 
@@ -252,6 +257,9 @@ class Session:
                 # Run after_error middleware hooks to check for retries/proxy failover
                 next_payload = self.middleware_pipeline.execute_error(self, payload, e)
                 if next_payload is not None:
+                    delay = next_payload.pop("_retry_delay", None)
+                    if delay:
+                        time.sleep(delay)
                     payload = next_payload
                     continue
                 # If no middleware handles the error, re-raise it
@@ -304,6 +312,9 @@ class Session:
                 # Run after_response middleware hooks
                 next_payload = self.middleware_pipeline.execute_after(self, payload, response)
                 if next_payload is not None:
+                    delay = next_payload.pop("_retry_delay", None)
+                    if delay:
+                        await asyncio.sleep(delay)
                     payload = next_payload
                     continue
 
@@ -313,6 +324,9 @@ class Session:
                 # Run after_error middleware hooks
                 next_payload = self.middleware_pipeline.execute_error(self, payload, e)
                 if next_payload is not None:
+                    delay = next_payload.pop("_retry_delay", None)
+                    if delay:
+                        await asyncio.sleep(delay)
                     payload = next_payload
                     continue
                 raise

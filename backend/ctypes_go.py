@@ -1,14 +1,13 @@
 import ctypes
 import json
 import asyncio
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-from horaa_tls.backend.base import BaseBackend
 from horaa_tls.exceptions import BackendError
 from horaa_tls.utils.updater import update_if_necessary
 
 
-class CtypesGoBackend(BaseBackend):
+class CtypesGoBackend:
     """
     Backend implementation that loads the compiled Go tls-client library
     via ctypes and invokes it in-process.
@@ -49,30 +48,39 @@ class CtypesGoBackend(BaseBackend):
                 raise BackendError(f"Failed to load and initialize Go shared library: {e}")
         return cls._lib
 
+    def _call(self, response_ptr, error_context: str) -> Optional[Dict[str, Any]]:
+        """
+        Shared response handling for every Go FFI call: decodes the C string pointer,
+        parses it as JSON, and always frees the Go-allocated memory afterwards.
+        Returns None if the Go library returned a null pointer.
+        """
+        if not response_ptr:
+            return None
+
+        lib = self.get_library()
+        res_obj = None
+        try:
+            response_bytes = ctypes.string_at(response_ptr)
+            res_obj = json.loads(response_bytes.decode("utf-8"))
+            return res_obj
+        except Exception as e:
+            raise BackendError(f"Failed to parse Go response ({error_context}): {e}")
+        finally:
+            # Always call freeMemory to release the C-string allocated by Go FFI
+            if isinstance(res_obj, dict) and "id" in res_obj:
+                lib.freeMemory(res_obj["id"].encode("utf-8"))
+
     def _execute_sync(self, request_payload: Dict[str, Any]) -> Dict[str, Any]:
         """Wrapper around the ctypes C call to request and free memory in Go."""
         lib = self.get_library()
         # Clean request payload by removing private keys starting with '_' (used for Python middleware state)
         clean_payload = {k: v for k, v in request_payload.items() if not k.startswith("_")}
         payload_bytes = json.dumps(clean_payload).encode("utf-8")
-        
-        # Call Go library to execute request
+
         response_ptr = lib.request(payload_bytes)
-        if not response_ptr:
+        response_data = self._call(response_ptr, "request")
+        if response_data is None:
             raise BackendError("Null pointer returned from Go request execution.")
-
-        try:
-            # Read from C string pointer
-            response_bytes = ctypes.string_at(response_ptr)
-            response_data = json.loads(response_bytes.decode("utf-8"))
-        except Exception as e:
-            raise BackendError(f"Failed to parse Go response: {e}")
-        finally:
-            # Always call freeMemory to release the C-string allocated by Go FFI
-            if "response_data" in locals() and isinstance(response_data, dict) and "id" in response_data:
-                response_id = response_data["id"].encode("utf-8")
-                lib.freeMemory(response_id)
-
         return response_data
 
     def execute(self, request_payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -89,19 +97,8 @@ class CtypesGoBackend(BaseBackend):
         """Fetch cookies stored in the Go session memory for a given URL."""
         lib = self.get_library()
         payload = json.dumps({"sessionId": session_id, "url": url}).encode("utf-8")
-        response_ptr = lib.getCookiesFromSession(payload)
-        
-        if not response_ptr:
-            return []
-
-        try:
-            response_bytes = ctypes.string_at(response_ptr)
-            res_obj = json.loads(response_bytes.decode("utf-8"))
-            cookies = res_obj.get("cookies", [])
-            return cookies
-        finally:
-            if "res_obj" in locals() and isinstance(res_obj, dict) and "id" in res_obj:
-                lib.freeMemory(res_obj["id"].encode("utf-8"))
+        res_obj = self._call(lib.getCookiesFromSession(payload), "get_cookies")
+        return res_obj.get("cookies", []) if res_obj else []
 
     def add_cookies(self, session_id: str, url: str, cookies: list) -> list:
         """Add cookies into Go session memory for a given URL."""
@@ -111,48 +108,18 @@ class CtypesGoBackend(BaseBackend):
             "url": url,
             "cookies": cookies
         }).encode("utf-8")
-        response_ptr = lib.addCookiesToSession(payload)
-        
-        if not response_ptr:
-            return []
-
-        try:
-            response_bytes = ctypes.string_at(response_ptr)
-            res_obj = json.loads(response_bytes.decode("utf-8"))
-            return res_obj.get("cookies", [])
-        finally:
-            if "res_obj" in locals() and isinstance(res_obj, dict) and "id" in res_obj:
-                lib.freeMemory(res_obj["id"].encode("utf-8"))
+        res_obj = self._call(lib.addCookiesToSession(payload), "add_cookies")
+        return res_obj.get("cookies", []) if res_obj else []
 
     def destroy_session(self, session_id: str) -> bool:
         """Destroys the session inside Go memory, releasing connections."""
         lib = self.get_library()
         payload = json.dumps({"sessionId": session_id}).encode("utf-8")
-        response_ptr = lib.destroySession(payload)
-        
-        if not response_ptr:
-            return False
-
-        try:
-            response_bytes = ctypes.string_at(response_ptr)
-            res_obj = json.loads(response_bytes.decode("utf-8"))
-            return res_obj.get("success", False)
-        finally:
-            if "res_obj" in locals() and isinstance(res_obj, dict) and "id" in res_obj:
-                lib.freeMemory(res_obj["id"].encode("utf-8"))
+        res_obj = self._call(lib.destroySession(payload), "destroy_session")
+        return res_obj.get("success", False) if res_obj else False
 
     def destroy_all_sessions(self) -> bool:
         """Destroys all active sessions inside Go memory."""
         lib = self.get_library()
-        response_ptr = lib.destroyAll()
-        
-        if not response_ptr:
-            return False
-
-        try:
-            response_bytes = ctypes.string_at(response_ptr)
-            res_obj = json.loads(response_bytes.decode("utf-8"))
-            return res_obj.get("success", False)
-        finally:
-            if "res_obj" in locals() and isinstance(res_obj, dict) and "id" in res_obj:
-                lib.freeMemory(res_obj["id"].encode("utf-8"))
+        res_obj = self._call(lib.destroyAll(), "destroy_all_sessions")
+        return res_obj.get("success", False) if res_obj else False

@@ -81,7 +81,7 @@ from horaa_tls import (
 | `BackendError` | exception | Handling failures in the Go shared library |
 | `NetworkError` | exception | Handling connection drops and HTTP error responses |
 
-> **Tip:** you can pass profiles as the enum (`ClientProfile.CHROME_133`) or as a plain string (`"chrome_133"`) — both work.
+> **Tip:** you can pass profiles as the enum (`ClientProfile.CHROME_133`) or as a plain string (`"chrome_133"`), both work.
 
 ---
 
