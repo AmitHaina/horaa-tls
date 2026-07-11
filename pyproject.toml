@@ -26,10 +26,10 @@ packages = [
     "horaa_tls.middleware",
     "horaa_tls.utils"
 ]
-package-dir = {
-    "horaa_tls" = ".",
-    "horaa_tls.backend" = "backend",
-    "horaa_tls.fingerprint" = "fingerprint",
-    "horaa_tls.middleware" = "middleware",
-    "horaa_tls.utils" = "utils"
-}
+
+[tool.setuptools.package-dir]
+"horaa_tls" = "."
+"horaa_tls.backend" = "backend"
+"horaa_tls.fingerprint" = "fingerprint"
+"horaa_tls.middleware" = "middleware"
+"horaa_tls.utils" = "utils"
