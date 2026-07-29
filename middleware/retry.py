@@ -1,3 +1,4 @@
+import copy
 from typing import Any, Dict, Optional, Tuple, Type
 from horaa_tls.middleware.base import BaseMiddleware
 from horaa_tls.response import Response
@@ -36,7 +37,7 @@ class RetryMiddleware(BaseMiddleware):
                 delay = self.backoff_factor * (2 ** attempt)
                 print(f"[horaa-tls] Server error status {response.status_code}. Retrying in {delay:.2f}s... (Attempt {attempt + 1}/{self.max_retries})")
 
-                next_payload = payload.copy()
+                next_payload = copy.deepcopy(payload)
                 next_payload["_retry_attempt"] = attempt + 1
                 # Delay is applied by the caller (sync: time.sleep, async: asyncio.sleep)
                 # so the async event loop is never blocked by a synchronous sleep here.
@@ -55,7 +56,7 @@ class RetryMiddleware(BaseMiddleware):
                 delay = self.backoff_factor * (2 ** attempt)
                 print(f"[horaa-tls] Network exception: {error}. Retrying in {delay:.2f}s... (Attempt {attempt + 1}/{self.max_retries})")
 
-                next_payload = payload.copy()
+                next_payload = copy.deepcopy(payload)
                 next_payload["_retry_attempt"] = attempt + 1
                 next_payload["_retry_delay"] = delay
                 return next_payload

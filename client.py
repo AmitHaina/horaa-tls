@@ -433,13 +433,29 @@ class Session:
         session.redirect_stop_at = data.get("redirect_stop_at")
         session.redirect_stop_if_contains = data.get("redirect_stop_if_contains")
 
-        # Reinstate proxy rotator state if present
+        # Reinstate proxy rotator state if present.
+        # We construct the middleware directly from the saved data instead of relying
+        # on __init__, which may not have created one (e.g. if the original proxy came
+        # from MITM auto-detection that is no longer active in this process). This also
+        # preserves the full proxy list, mode, and failover limit that were serialized.
         pm_data = data.get("proxy_middleware")
-        if pm_data and session.proxy_middleware:
+        if pm_data and pm_data.get("proxies"):
+            from horaa_tls.middleware.proxy import ProxyRotatorMiddleware
+            # If __init__ already registered a proxy middleware, reuse it so we don't
+            # end up with two registered in the pipeline.
+            if session.proxy_middleware is None:
+                session.proxy_middleware = ProxyRotatorMiddleware(
+                    proxies=pm_data["proxies"],
+                    mode=pm_data.get("mode", "failover"),
+                    max_failovers=pm_data.get("max_failovers", 5),
+                )
+                session.middleware_pipeline.add(session.proxy_middleware)
             session.proxy_middleware.proxies = pm_data.get("proxies", [])
             session.proxy_middleware.mode = pm_data.get("mode", "failover")
             session.proxy_middleware.max_failovers = pm_data.get("max_failovers", 5)
             session.proxy_middleware._index = pm_data.get("index", 0)
+            # Keep session.proxy in sync with the first proxy in the restored list
+            session.proxy = session.proxy_middleware.proxies[0] if session.proxy_middleware.proxies else session.proxy
 
         return session
 

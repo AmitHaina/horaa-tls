@@ -1,4 +1,5 @@
 import os
+import copy
 from typing import Any, Dict, List, Optional
 from horaa_tls.middleware.base import BaseMiddleware
 from horaa_tls.response import Response
@@ -96,7 +97,7 @@ class ProxyRotatorMiddleware(BaseMiddleware):
                 return None  # Stop retrying, propagate response
 
             self._rotate()
-            next_payload = payload.copy()
+            next_payload = copy.deepcopy(payload)
             next_payload["proxyUrl"] = self._get_current_proxy()
             next_payload["_proxy_failover_count"] = failovers + 1
             print(f"[horaa-tls] Proxy blocked ({response.status_code}). Failover to next proxy: {next_payload['proxyUrl']}")
@@ -114,7 +115,7 @@ class ProxyRotatorMiddleware(BaseMiddleware):
                 return None  # Propagate the error
 
             self._rotate()
-            next_payload = payload.copy()
+            next_payload = copy.deepcopy(payload)
             next_payload["proxyUrl"] = self._get_current_proxy()
             next_payload["_proxy_failover_count"] = failovers + 1
             print(f"[horaa-tls] Network error: {error}. Retrying with next proxy: {next_payload['proxyUrl']}")

@@ -58,17 +58,62 @@ class CtypesGoBackend:
             return None
 
         lib = self.get_library()
-        res_obj = None
+        # Read the raw C string once up front. We keep a reference to the decoded text
+        # so that even when strict JSON parsing fails we can still recover the response
+        # "id" and release the Go-allocated buffer instead of leaking it.
+        response_obj = None
+        response_id = None
+        parse_error: Optional[Exception] = None
         try:
             response_bytes = ctypes.string_at(response_ptr)
-            res_obj = json.loads(response_bytes.decode("utf-8"))
-            return res_obj
+            decoded = response_bytes.decode("utf-8")
+            response_obj = json.loads(decoded)
+            if isinstance(response_obj, dict):
+                response_id = response_obj.get("id")
         except Exception as e:
-            raise BackendError(f"Failed to parse Go response ({error_context}): {e}")
+            parse_error = e
         finally:
-            # Always call freeMemory to release the C-string allocated by Go FFI
-            if isinstance(res_obj, dict) and "id" in res_obj:
-                lib.freeMemory(res_obj["id"].encode("utf-8"))
+            # Always attempt to release the Go-allocated buffer. When strict parsing
+            # failed we still try to recover the "id" field so the free runs on the
+            # error path too, rather than skipping it and leaking the buffer.
+            if response_id is None:
+                response_id = self._recover_response_id(response_ptr)
+            if response_id is not None:
+                try:
+                    lib.freeMemory(response_id.encode("utf-8"))
+                except Exception:
+                    # Never let a free-time failure mask the original outcome.
+                    pass
+
+        if response_obj is None:
+            raise BackendError(f"Failed to parse Go response ({error_context}): {parse_error}")
+        return response_obj
+
+    @staticmethod
+    def _recover_response_id(response_ptr) -> Optional[str]:
+        """
+        Best-effort extraction of the "id" field from a Go response buffer when strict
+        JSON parsing fails. Returns the id string if found, otherwise None.
+        """
+        try:
+            decoded = ctypes.string_at(response_ptr).decode("utf-8", errors="replace")
+            marker = '"id"'
+            start = decoded.find(marker)
+            if start == -1:
+                return None
+            # Locate the opening quote of the value after the marker.
+            colon = decoded.find(":", start)
+            if colon == -1:
+                return None
+            open_quote = decoded.find('"', colon)
+            if open_quote == -1:
+                return None
+            close_quote = decoded.find('"', open_quote + 1)
+            if close_quote == -1:
+                return None
+            return decoded[open_quote + 1:close_quote]
+        except Exception:
+            return None
 
     def _execute_sync(self, request_payload: Dict[str, Any]) -> Dict[str, Any]:
         """Wrapper around the ctypes C call to request and free memory in Go."""
