@@ -1,4 +1,3 @@
-import copy
 import urllib.parse
 from typing import Any, Dict, Optional, List
 from horaa_tls.middleware.base import BaseMiddleware
@@ -44,30 +43,29 @@ class RedirectMiddleware(BaseMiddleware):
         request_url = payload["requestUrl"]
         new_url = urllib.parse.urljoin(request_url, location)
 
+        # Retrieve/initialize history in active payload
+        history: List[Response] = payload.setdefault("_redirect_history", [])
+        if len(history) >= self.max_redirects:
+            raise NetworkError(f"Max redirects exceeded (limit: {self.max_redirects})")
+
         # Check stop conditions if specified on the session
         stop_at = getattr(session, "redirect_stop_at", None)
         stop_if_contains = getattr(session, "redirect_stop_if_contains", None)
 
         if stop_at and new_url == stop_at:
-            response.history = payload.get("_redirect_history", [])
+            response.history = history
             return None
         if stop_if_contains and stop_if_contains in new_url:
-            response.history = payload.get("_redirect_history", [])
+            response.history = history
             return None
-
-        # Construct a fully isolated payload for the next hop. deepcopy ensures nested
-        # mutable values (headers dict, requestCookies list, redirect history) are not
-        # shared with the original payload and mutated inadvertently.
-        next_payload = copy.deepcopy(payload)
-        next_payload["requestUrl"] = new_url
-
-        # Operate on the history stored in the copied payload so it stays isolated.
-        history: List[Response] = next_payload.setdefault("_redirect_history", [])
-        if len(history) >= self.max_redirects:
-            raise NetworkError(f"Max redirects exceeded (limit: {self.max_redirects})")
 
         # Append current response to redirect history
         history.append(response)
+
+        # Construct new request payload for next hop in loop
+        next_payload = payload.copy()
+        next_payload["requestUrl"] = new_url
+        next_payload["_redirect_history"] = history
 
         # For 301, 302, and 303, standard browser behavior converts method to GET and clears body
         if response.status_code in (301, 302, 303):
