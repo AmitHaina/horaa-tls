@@ -86,18 +86,22 @@ class Session:
         # Initialize the Pluggable Middleware Subsystem
         self.middleware_pipeline = MiddlewarePipeline()
 
-        # Register RetryMiddleware
-        from horaa_tls.middleware.retry import RetryMiddleware
-        self.retry_middleware = RetryMiddleware()
-        self.middleware_pipeline.add(self.retry_middleware)
-
-        # Register Proxy Rotator if proxies/proxy are configured
+        # Register Proxy Rotator if proxies/proxy are configured. Registered before
+        # RetryMiddleware so that on network/connection errors, failover to a fresh
+        # proxy is attempted first instead of burning retry attempts against the
+        # same broken proxy (MiddlewarePipeline stops at the first middleware that
+        # returns a payload, so registration order is the priority order).
         if proxies or proxy:
             proxy_list = proxies if proxies else [proxy]
             self.proxy_middleware = ProxyRotatorMiddleware(proxies=proxy_list, mode=proxy_mode)
             self.middleware_pipeline.add(self.proxy_middleware)
         else:
             self.proxy_middleware = None
+
+        # Register RetryMiddleware
+        from horaa_tls.middleware.retry import RetryMiddleware
+        self.retry_middleware = RetryMiddleware()
+        self.middleware_pipeline.add(self.retry_middleware)
 
         # Register Redirection Resolver
         self.redirect_middleware = RedirectMiddleware()
@@ -449,7 +453,10 @@ class Session:
                     mode=pm_data.get("mode", "failover"),
                     max_failovers=pm_data.get("max_failovers", 5),
                 )
-                session.middleware_pipeline.add(session.proxy_middleware)
+                # Insert at the front so it retains priority over RetryMiddleware,
+                # matching the ordering __init__ uses when a proxy is configured
+                # up front (failover is tried before burning retry attempts).
+                session.middleware_pipeline.insert(0, session.proxy_middleware)
             session.proxy_middleware.proxies = pm_data.get("proxies", [])
             session.proxy_middleware.mode = pm_data.get("mode", "failover")
             session.proxy_middleware.max_failovers = pm_data.get("max_failovers", 5)

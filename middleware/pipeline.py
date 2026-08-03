@@ -15,6 +15,10 @@ class MiddlewarePipeline:
         """Appends a middleware instance to the pipeline."""
         self._middlewares.append(middleware)
 
+    def insert(self, index: int, middleware: BaseMiddleware):
+        """Inserts a middleware instance at a specific position in the pipeline."""
+        self._middlewares.insert(index, middleware)
+
     def execute_before(self, session, payload: Dict[str, Any]) -> None:
         """Runs the before_request hooks in registration order."""
         for middleware in self._middlewares:
