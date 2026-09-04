@@ -1,9 +1,11 @@
+import asyncio
 import ctypes
 import json
-import asyncio
-from typing import Any, Dict, Optional
+import threading
+from typing import Any
 
 from horaa_tls.exceptions import BackendError
+from horaa_tls.log import logger
 from horaa_tls.utils.updater import update_if_necessary
 
 
@@ -14,41 +16,45 @@ class CtypesGoBackend:
     """
 
     _lib = None
+    _lib_lock = threading.Lock()
 
     @classmethod
     def get_library(cls):
-        """Loads and returns the ctypes Go dynamic library, initializing it on first use."""
+        """Loads and returns the ctypes Go dynamic library, initializing it on first use (thread-safe)."""
         if cls._lib is None:
-            try:
-                # Retrieve (and download if needed) the precompiled binary
-                lib_path = update_if_necessary()
-                lib = ctypes.cdll.LoadLibrary(lib_path)
+            with cls._lib_lock:
+                if cls._lib is None:  # double-checked locking
+                    try:
+                        # Retrieve (and download if needed) the precompiled binary
+                        lib_path = update_if_necessary()
+                        logger.debug("Loading Go tls-client library from %s", lib_path)
+                        lib = ctypes.cdll.LoadLibrary(lib_path)
 
-                # Define argtypes and restypes for Go-exported C functions
-                lib.request.argtypes = [ctypes.c_char_p]
-                lib.request.restype = ctypes.c_char_p
+                        # Define argtypes and restypes for Go-exported C functions
+                        lib.request.argtypes = [ctypes.c_char_p]
+                        lib.request.restype = ctypes.c_char_p
 
-                lib.freeMemory.argtypes = [ctypes.c_char_p]
-                lib.freeMemory.restype = ctypes.c_char_p
+                        lib.freeMemory.argtypes = [ctypes.c_char_p]
+                        lib.freeMemory.restype = ctypes.c_char_p
 
-                lib.getCookiesFromSession.argtypes = [ctypes.c_char_p]
-                lib.getCookiesFromSession.restype = ctypes.c_char_p
+                        lib.getCookiesFromSession.argtypes = [ctypes.c_char_p]
+                        lib.getCookiesFromSession.restype = ctypes.c_char_p
 
-                lib.addCookiesToSession.argtypes = [ctypes.c_char_p]
-                lib.addCookiesToSession.restype = ctypes.c_char_p
+                        lib.addCookiesToSession.argtypes = [ctypes.c_char_p]
+                        lib.addCookiesToSession.restype = ctypes.c_char_p
 
-                lib.destroySession.argtypes = [ctypes.c_char_p]
-                lib.destroySession.restype = ctypes.c_char_p
+                        lib.destroySession.argtypes = [ctypes.c_char_p]
+                        lib.destroySession.restype = ctypes.c_char_p
 
-                lib.destroyAll.argtypes = []
-                lib.destroyAll.restype = ctypes.c_char_p
+                        lib.destroyAll.argtypes = []
+                        lib.destroyAll.restype = ctypes.c_char_p
 
-                cls._lib = lib
-            except Exception as e:
-                raise BackendError(f"Failed to load and initialize Go shared library: {e}")
+                        cls._lib = lib
+                    except Exception as e:
+                        raise BackendError(f"Failed to load and initialize Go shared library: {e}") from e
         return cls._lib
 
-    def _call(self, response_ptr, error_context: str) -> Optional[Dict[str, Any]]:
+    def _call(self, response_ptr, error_context: str) -> dict[str, Any] | None:
         """
         Shared response handling for every Go FFI call: decodes the C string pointer,
         parses it as JSON, and always frees the Go-allocated memory afterwards.
@@ -63,7 +69,7 @@ class CtypesGoBackend:
         # "id" and release the Go-allocated buffer instead of leaking it.
         response_obj = None
         response_id = None
-        parse_error: Optional[Exception] = None
+        parse_error: Exception | None = None
         try:
             response_bytes = ctypes.string_at(response_ptr)
             decoded = response_bytes.decode("utf-8")
@@ -90,7 +96,7 @@ class CtypesGoBackend:
         return response_obj
 
     @staticmethod
-    def _recover_response_id(response_ptr) -> Optional[str]:
+    def _recover_response_id(response_ptr) -> str | None:
         """
         Best-effort extraction of the "id" field from a Go response buffer when strict
         JSON parsing fails. Returns the id string if found, otherwise None.
@@ -115,7 +121,7 @@ class CtypesGoBackend:
         except Exception:
             return None
 
-    def _execute_sync(self, request_payload: Dict[str, Any]) -> Dict[str, Any]:
+    def _execute_sync(self, request_payload: dict[str, Any]) -> dict[str, Any]:
         """Wrapper around the ctypes C call to request and free memory in Go."""
         lib = self.get_library()
         # Clean request payload by removing private keys starting with '_' (used for Python middleware state)
@@ -128,11 +134,11 @@ class CtypesGoBackend:
             raise BackendError("Null pointer returned from Go request execution.")
         return response_data
 
-    def execute(self, request_payload: Dict[str, Any]) -> Dict[str, Any]:
+    def execute(self, request_payload: dict[str, Any]) -> dict[str, Any]:
         """Execute request synchronously."""
         return self._execute_sync(request_payload)
 
-    async def execute_async(self, request_payload: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_async(self, request_payload: dict[str, Any]) -> dict[str, Any]:
         """Execute request asynchronously by running the blocking ctypes call in an executor."""
         loop = asyncio.get_running_loop()
         # run_in_executor runs the synchronous FFI block in a background thread to prevent GIL stalling
