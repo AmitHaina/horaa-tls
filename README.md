@@ -25,9 +25,11 @@ pip install horaa-tls
 ## 💡 Why Horaa TLS?
 
 *   **Zero External Dependencies**: Automatically detects your OS and architecture, downloads the matching precompiled Go libraries, and initializes everything dynamically without requiring third-party pip dependencies.
+*   **Supply-Chain Hardened**: The Go library version is pinned, fetched via a direct download URL, and verified against a built-in SHA-256 manifest before it is ever loaded.
 *   **Cryptographic Emulation**: Leverages preset browser profiles (Chrome 133, Firefox 133, etc.) to negotiate matching TLS extensions, cipher suites, key share curves, and HTTP/2 settings.
-*   **Aligned User-Agents & Client Hints**: Keeps HTTP/2 Client Hints (`Sec-Ch-Ua`, `Sec-Ch-Ua-Mobile`, `Sec-Ch-Ua-Platform`) perfectly aligned with the selected browser TLS version to prevent anti-bot detection signals.
+*   **Aligned User-Agents & Client Hints**: Keeps HTTP/2 Client Hints (`Sec-Ch-Ua`, `Sec-Ch-Ua-Mobile`, `Sec-Ch-Ua-Platform`) perfectly aligned with the selected browser TLS version, and sends each profile's real HTTP header order by default.
 *   **Decoupled Middleware Hooks**: Register asynchronous or synchronous middleware layers (such as rotators and retries) directly in the request-response cycle.
+*   **Domain-Safe Cookie Jar**: Cookies set by one site are never replayed to another, and `Authorization`/`Cookie` headers are stripped on cross-host redirects.
 
 ---
 
@@ -38,17 +40,30 @@ Initialize a session mimicking a Chrome 133 browser:
 ```python
 from horaa_tls import Session, ClientProfile
 
-# Create a stateful, browser-emulating session
-session = Session(profile=ClientProfile.CHROME_133)
-
-try:
+# Context managers close the session (releasing FFI memory) automatically
+with Session(profile=ClientProfile.CHROME_133) as session:
     # Perform a request (headers, JA3/JA4, and Client Hints are automatically injected)
     response = session.get("https://httpbingo.org/get")
     print(f"Status Code: {response.status_code}")
     print(response.json())
-finally:
-    # Always close the session to release low-level FFI memory allocations
-    session.close()
+```
+
+### ⚡ Async Support
+
+Every HTTP method has an async twin (`get_async`, `post_async`, ...) plus a shared
+`request_async` entry point. The blocking FFI call runs in a thread executor, so
+the event loop is never stalled, and retries back off with `asyncio.sleep`:
+
+```python
+import asyncio
+from horaa_tls import Session, ClientProfile
+
+async def main():
+    async with Session(profile=ClientProfile.CHROME_133) as session:
+        r = await session.get_async("https://httpbingo.org/get")
+        print(r.status_code)
+
+asyncio.run(main())
 ```
 
 ---
@@ -67,6 +82,10 @@ from horaa_tls import (
     HoraaTLSError,       # base exception for the library
     BackendError,        # raised when the Go FFI layer fails
     NetworkError,        # raised on transport failures / HTTP error status
+    TooManyRedirectsError,  # raised when a redirect chain exceeds the limit
+    # Middleware authoring:
+    BaseMiddleware, MiddlewarePipeline,
+    RetryMiddleware, RedirectMiddleware, ProxyRotatorMiddleware,
 )
 ```
 
@@ -80,8 +99,27 @@ from horaa_tls import (
 | `HoraaTLSError` | exception | Catching any library error in one `except` |
 | `BackendError` | exception | Handling failures in the Go shared library |
 | `NetworkError` | exception | Handling connection drops and HTTP error responses |
+| `TooManyRedirectsError` | exception | Redirect chain exceeded `RedirectMiddleware.max_redirects` |
 
 > **Tip:** you can pass profiles as the enum (`ClientProfile.CHROME_133`) or as a plain string (`"chrome_133"`), both work.
+
+---
+
+## ⚙️ Configuration & Environment Variables
+
+| Environment variable | Purpose |
+|---|---|
+| `TLS_LIBRARY_PATH` | Use a specific Go shared library file, skipping the updater entirely. |
+| `HORAA_TLS_TLS_CLIENT_VERSION` | Pin a different upstream tls-client version (default: `1.16.0`). |
+| `HORAA_TLS_CACHE_DIR` | Where the downloaded library is stored (default: `~/.cache/horaa-tls` on Linux/macOS, `%LOCALAPPDATA%\\horaa-tls` on Windows). |
+| `HORAA_TLS_CHARLES_PORT` / `HORAA_TLS_FIDDLER_PORT` | Local ports for debugging-proxy detection (default `8888` for both). |
+| `GITHUB_TOKEN` / `GH_TOKEN` | Optional; raises GitHub API rate limits when the API fallback path is used. |
+
+Session-level behavior worth knowing:
+
+*   `random_tls_extension_order` (default `False`): real browsers send a stable TLS extension order; randomizing per request changes your JA3 every handshake, which is itself a bot signal. Enable only if you specifically want per-request JA3 rotation.
+*   `use_mitm_when_active` (default `False`): opt in to route traffic through a locally running Charles/Fiddler proxy.
+*   The Go library download is pinned and SHA-256 verified. A checksum mismatch aborts loading with `BackendError`.
 
 ---
 
