@@ -11,3 +11,13 @@ class BackendError(HoraaTLSError):
 class NetworkError(HoraaTLSError):
     """Raised when a network-level error occurs (e.g., timeout, connection failure)."""
     pass
+
+
+class TooManyRedirectsError(NetworkError):
+    """Raised when a redirect chain exceeds the configured maximum.
+
+    Deliberately distinct from :class:`NetworkError` so that
+    :class:`horaa_tls.middleware.retry.RetryMiddleware` does not wastefully
+    re-run the entire (failing) redirect chain.
+    """
+    pass
