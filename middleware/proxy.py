@@ -1,5 +1,7 @@
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+from horaa_tls.log import logger
 from horaa_tls.middleware.base import BaseMiddleware
 from horaa_tls.response import Response
 
@@ -17,7 +19,7 @@ def normalize_proxy_url(proxy: str) -> str:
     if not proxy:
         return ""
 
-    if proxy.startswith("http://") or proxy.startswith("https://") or proxy.startswith("socks5://") or proxy.startswith("socks4://"):
+    if proxy.startswith(("http://", "https://", "socks5://", "socks5h://", "socks4://")):
         return proxy
 
     parts = proxy.split(":")
@@ -25,7 +27,7 @@ def normalize_proxy_url(proxy: str) -> str:
         return f"http://{parts[0]}:{parts[1]}"
     elif len(parts) == 4:
         return f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
-    
+
     return f"http://{proxy}"
 
 
@@ -37,8 +39,8 @@ class ProxyRotatorMiddleware(BaseMiddleware):
 
     def __init__(
         self,
-        proxies: Optional[List[str]] = None,
-        file_path: Optional[str] = None,
+        proxies: list[str] | None = None,
+        file_path: str | None = None,
         mode: str = "failover",
         max_failovers: int = 5,
     ):
@@ -49,7 +51,7 @@ class ProxyRotatorMiddleware(BaseMiddleware):
             mode: 'request' (rotate on every request) or 'failover' (rotate on error/block).
             max_failovers: Limit on consecutive failover retries to prevent infinite loops.
         """
-        self.proxies: List[str] = []
+        self.proxies: list[str] = []
         self.mode = mode.lower()
         self.max_failovers = max_failovers
         self._index = 0
@@ -58,7 +60,7 @@ class ProxyRotatorMiddleware(BaseMiddleware):
         if proxies:
             self.proxies = [normalize_proxy_url(p) for p in proxies if p.strip()]
         elif file_path and os.path.exists(file_path):
-            with open(file_path, "r") as f:
+            with open(file_path) as f:
                 self.proxies = [
                     normalize_proxy_url(line)
                     for line in f.read().splitlines()
@@ -74,7 +76,7 @@ class ProxyRotatorMiddleware(BaseMiddleware):
         if self.proxies:
             self._index += 1
 
-    def before_request(self, session, payload: Dict[str, Any]) -> None:
+    def before_request(self, session, payload: dict[str, Any]) -> None:
         if not self.proxies:
             return
 
@@ -87,8 +89,8 @@ class ProxyRotatorMiddleware(BaseMiddleware):
         payload["proxyUrl"] = current_proxy
 
     def after_response(
-        self, session, payload: Dict[str, Any], response: Response
-    ) -> Optional[Dict[str, Any]]:
+        self, session, payload: dict[str, Any], response: Response
+    ) -> dict[str, Any] | None:
         # If mode is failover and the response status code is a block/throttle (403/429)
         if self.mode == "failover" and response.status_code in (403, 429):
             failovers = payload.get("_proxy_failover_count", 0)
@@ -99,14 +101,16 @@ class ProxyRotatorMiddleware(BaseMiddleware):
             next_payload = payload.copy()
             next_payload["proxyUrl"] = self._get_current_proxy()
             next_payload["_proxy_failover_count"] = failovers + 1
-            print(f"[horaa-tls] Proxy blocked ({response.status_code}). Failover to next proxy: {next_payload['proxyUrl']}")
+            logger.warning(
+                "Proxy blocked (%d). Failover to next proxy: %s", response.status_code, next_payload["proxyUrl"]
+            )
             return next_payload
 
         return None
 
     def after_error(
-        self, session, payload: Dict[str, Any], error: Exception
-    ) -> Optional[Dict[str, Any]]:
+        self, session, payload: dict[str, Any], error: Exception
+    ) -> dict[str, Any] | None:
         # If execution encounters network or connection failures, attempt a failover proxy
         if self.mode == "failover" and self.proxies:
             failovers = payload.get("_proxy_failover_count", 0)
@@ -117,7 +121,7 @@ class ProxyRotatorMiddleware(BaseMiddleware):
             next_payload = payload.copy()
             next_payload["proxyUrl"] = self._get_current_proxy()
             next_payload["_proxy_failover_count"] = failovers + 1
-            print(f"[horaa-tls] Network error: {error}. Retrying with next proxy: {next_payload['proxyUrl']}")
+            logger.warning("Network error: %s. Retrying with next proxy: %s", error, next_payload["proxyUrl"])
             return next_payload
 
         return None
