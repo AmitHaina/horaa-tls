@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.6 — 2026-09-05
+## 0.2.0 — 2026-09-05
 
 ### Fixed
 - **(critical)** Updater generated asset names that no longer exist upstream: bogdanfinn/tls-client
